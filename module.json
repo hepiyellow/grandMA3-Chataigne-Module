@@ -45,7 +45,7 @@
   },
 
   "hideDefaultParameters": ["autoAdd", "colorSendMode", "useHierarchy", "autoFeedback"],
-  "scripts": ["grandMA3.js"],
+  "scripts": ["grandMA3.js", "grandMA3_feedback.js"],
 
   "values":
   {
