@@ -4,6 +4,10 @@ var seqToExecMapping = {
   // "1": {FaderMaster:[{page: 1, exec: 201}]}
 };
 
+var execToMidiMapping = {
+  // "1.201": midiValueObject
+};
+
 var GRANDMA3_MODULE_NAME = script.getParent().getParent().name;
 var MOVE_EXEC_FADER_COMMAND_NAME = "Move Executor Fader";
 
@@ -13,6 +17,8 @@ function init() {
   // Test
   // var midiValue = findMappings({ page: 1, exec: 201 });
   // log(midiValue.name);
+  buildExecToMidiMapping();
+  local.send("/cmd", 'plugin 1 "syncMapping"');
 }
 
 function oscEvent(address, args) {
@@ -45,6 +51,7 @@ function processSequence2Exec(args) {
   var execNumber = args[3];
   var faderValue = args[4]; // 0-100
 
+  log('typeof seqIndex: ' + typeof seqIndex);
   log('seqIndex: ' + seqIndex + ', faderType: ' + faderType + ', execPage: ' + execPage + ', execNumber: ' + execNumber + ', faderValue: ' + faderValue);
   var seq = seqToExecMapping[seqIndex];
   if (seq == undefined) {
@@ -72,37 +79,49 @@ function processSequence2Exec(args) {
 }
 
 function processSequenceFeedback(seqIndexString, args) {
-  log('seqIndex: ' + seqIndexString);
   var faderType = args[0];
   var faderNumber = args[1]; // Usually just 1
   var faderValue = args[2];
   var seqName = args[3];
-  log(":processSequenceFeedback: seq=" + seqIndexString + ",args0=" + arg0 + ",args1=" + arg1 + ",args2=" + arg2 + ",args3=" + arg3);
   var execData = seqToExecMapping[seqIndexString][faderType][0];
   if (execData == undefined) {
-    log('sequence has no exec');
+    // log('sequence has no exec');
     return;
   }
-  var midiValue = findMappings(execData);
-  if (midiValue == undefined) {
-    log('midiValue is undefined');
+  var midiValueObject = findMappings(execData);
+  if (midiValueObject == undefined) {
+    // log('midiValue is undefined');
     return;
   }
-  midiValue.set(faderValue * 127 / 100);
+  var faderMidiValue = Math.floor(faderValue * 127 / 100);
+  if (faderMidiValue != midiValueObject.get()) {
+    midiValueObject.set(faderMidiValue);
+  }
 }
 
 function buildExecToMidiMapping() {
-
+  function visitor(output, midiValue) {
+    var key = output.command.page.get() + "." + output.command.executor.get();
+    execToMidiMapping[key] = midiValue;
+  }
+  traverseOutputMappings(visitor);
 }
 
 function findMappings(execData) {
   var page = execData.page;
   var execNumber = execData.exec;
+  var key = page + "." + execNumber;
+  var midiValue = execToMidiMapping[key];
+  if (midiValue != undefined) {
+    log('Found midiValue in cache: ' + key + ' => ' + midiValue.name);
+    return midiValue;
+  }
 
   function visitMapping(output, midiValue) {
     var cmd = output.command;
     if (cmd.page != undefined && cmd.executor != undefined) {
       if (page == cmd.page.get() && execNumber == cmd.executor.get()) {
+        execToMidiMapping[key] = midiValue;
         return midiValue
       }
     }
